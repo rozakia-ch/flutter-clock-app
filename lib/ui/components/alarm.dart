@@ -1,11 +1,28 @@
 import 'package:clock_app/constants/data.dart';
 import 'package:clock_app/constants/theme.dart';
+import 'package:clock_app/main.dart';
 import 'package:clock_app/models/alarm_info.dart';
 import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_native_timezone/flutter_native_timezone.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
-class Alarm extends StatelessWidget {
+class Alarm extends StatefulWidget {
   const Alarm({Key? key}) : super(key: key);
+
+  @override
+  _AlarmState createState() => _AlarmState();
+}
+
+class _AlarmState extends State<Alarm> {
+  @override
+  void initState() {
+    tz.initializeTimeZones();
+
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +43,7 @@ class Alarm extends StatelessWidget {
             child: ListView(
               children: alarms
                   .map<Widget>((e) => _buildAlarmItem(context, alarmInfo: e))
-                  .followedBy([_buildAddAlarm()]).toList(),
+                  .followedBy([(alarms.length <= 5) ? _buildAddAlarm() : Container()]).toList(),
             ),
           )
         ],
@@ -49,7 +66,10 @@ class Alarm extends StatelessWidget {
           borderRadius: BorderRadius.circular(24.0),
         ),
         child: TextButton(
-          onPressed: () {},
+          onPressed: () {
+            var schedul = DateTime.now().add(Duration(seconds: 10));
+            scheduleAlarm(scheduledNotificationDateTime: schedul, alarmInfo: alarms.first);
+          },
           child: Column(
             children: [
               Image.asset(
@@ -126,6 +146,45 @@ class Alarm extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void scheduleAlarm({
+    required DateTime scheduledNotificationDateTime,
+    required AlarmInfo alarmInfo,
+  }) async {
+    final String currentTimeZone = await FlutterNativeTimezone.getLocalTimezone();
+
+    tz.setLocalLocation(tz.getLocation(currentTimeZone));
+    AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      'alarm_notif',
+      'alarm_notif',
+      'Channel for Alarm notification',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: 'app_icon',
+      sound: RawResourceAndroidNotificationSound('a_long_cold_sting'),
+      largeIcon: DrawableResourceAndroidBitmap('app_icon'),
+    );
+
+    IOSNotificationDetails iOSPlatformChannelSpecifics = IOSNotificationDetails(
+      sound: 'a_long_cold_sting.wav',
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+      iOS: iOSPlatformChannelSpecifics,
+    );
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      0,
+      'Office',
+      alarmInfo.title,
+      tz.TZDateTime.now(tz.local).add(const Duration(minutes: 10)),
+      platformChannelSpecifics,
+      androidAllowWhileIdle: true,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 }
